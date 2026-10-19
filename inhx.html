@@ -6,9 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#000000">
 <title>GTA Minimap</title>
-<script>window.__s=function(t){var e=document.getElementById('smsg');if(e)e.textContent=t;};window.onerror=function(m,u,l){var e=document.getElementById('smsg');if(e)e.textContent='Fehler im Code: '+m+' (Zeile '+l+')';};</script>
-<script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
-<script>window.maplibregl||document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.js"><\/script>');</script>
+<script>window.__s=function(t){var e=document.getElementById('info');if(e)e.textContent=t;};window.onerror=function(m,u,l){__s('Fehler im Code: '+m+' (Zeile '+l+')');};</script>
 <style>
   html,body{margin:0;height:100%;background:#0b0c0d;overflow:hidden;font-family:system-ui,sans-serif;color:#fff;-webkit-tap-highlight-color:transparent}
   body{display:flex;align-items:center;justify-content:center;flex-direction:column;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
@@ -110,11 +108,11 @@
   <button id="rcancel">Schließen</button>
 </div></div>
 
-<div id="start">
-  <p id="smsg">Lade …</p>
+<div id="start" style="display:none">
+  <p id="smsg"></p>
   <button id="go">Start</button>
-  <small style="opacity:.4;font-size:11px">Version 19.10.-D</small>
 </div>
+<div style="position:fixed;left:8px;bottom:4px;font-size:10px;opacity:.35;z-index:50">Version 19.10.-E</div>
 
 <script>
 __s('Schritt 1: Skript startet · Karten-Lib: '+typeof maplibregl);
@@ -362,4 +360,7 @@ function clearRoute(){
   if(destMarker){ destMarker.remove(); destMarker=null; }
 }
 $('routebtn').addEventListener('click',()=>$('rpanel').classList.add('open'));
-$('rcancel')
+$('rcancel').addEventListener('click',()=>$('rpanel').classList.remove('open'));
+$('rgo').addEventListener('click',calcRoute);
+$('rclear').addEventListener('click',()=>{ clearRoute(); $('rpanel').classList.remove('open'); });
+$('rto').addEventListener
