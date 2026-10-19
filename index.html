@@ -6,7 +6,9 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#000000">
 <title>GTA Minimap</title>
+<script>window.onerror=function(m,u,l){var e=document.getElementById('smsg');if(e)e.textContent='Fehler im Code: '+m+' (Zeile '+l+')';};</script>
 <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script>window.maplibregl||document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/maplibre-gl/4.7.1/maplibre-gl.js"><\/script>');</script>
 <style>
   html,body{margin:0;height:100%;background:#0b0c0d;overflow:hidden;font-family:system-ui,sans-serif;color:#fff;-webkit-tap-highlight-color:transparent}
   body{display:flex;align-items:center;justify-content:center;flex-direction:column;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
@@ -109,8 +111,9 @@
 </div></div>
 
 <div id="start">
-  <p>Die Karte folgt deinem Standort. Tippe auf den Kreis, um die große Karte zu öffnen. Erlaube Standort und Kompass im nächsten Schritt.</p>
+  <p id="smsg">Lade …</p>
   <button id="go">Start</button>
+  <small style="opacity:.4;font-size:11px">Version 19.10.-C</small>
 </div>
 
 <script>
@@ -351,10 +354,7 @@ apply(true);
 
 async function start(){
   if(started) return;
-  if(typeof maplibregl==='undefined'){ $('start').querySelector('p').textContent='Kartenbibliothek nicht geladen – Seite neu laden.'; return; }
+  if(typeof maplibregl==='undefined'){ $('smsg').textContent='Kartenbibliothek nicht geladen – Seite neu laden.'; return; }
   started=true; $('start').style.display='none';
   try{
-    if(typeof DeviceOrientationEvent!=='undefined' && DeviceOrientationEvent.requestPermission){
-      if(await DeviceOrientationEvent.requestPermission()==='granted') window.addEventListener('deviceorientation',onOrientation,true);
-    }else{
-      window.addEventListener('deviceorientationabsolute',onOrientation,tr
+    if(typeof DeviceOrientationEvent!=='undefined' && DeviceOrientationEvent.requestPermi
