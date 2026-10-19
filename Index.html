@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#000000">
+<title>GTA Minimap</title>
+<script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<style>
+  html,body{margin:0;height:100%;background:#0b0c0d;overflow:hidden;font-family:system-ui,sans-serif;color:#fff}
+  body{display:flex;align-items:center;justify-content:center;flex-direction:column;
+       padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+  /* minimal MapLibre CSS */
+  .maplibregl-map{position:relative;overflow:hidden}
+  .maplibregl-canvas{position:absolute;left:0;top:0}
+  .maplibregl-canvas-container.maplibregl-interactive{cursor:grab}
+  .maplibregl-ctrl-bottom-left,.maplibregl-ctrl-bottom-right,.maplibregl-ctrl-top-left,.maplibregl-ctrl-top-right{display:none}
+
+  #wrap{position:relative;width:min(88vw,58vh);height:min(88vw,58vh)}
+  #ring{position:absolute;inset:0;border-radius:50%;overflow:hidden;
+        border:4px solid #000;box-shadow:0 0 0 2px #3a3d40,0 0 40px #000;background:#16181a}
+  #map{position:absolute;inset:0;pointer-events:none}
+  #vignette{position:absolute;inset:0;border-radius:50%;pointer-events:none;
+        background:radial-gradient(circle,transparent 55%,rgba(0,0,0,.65) 100%)}
+  #noise{position:absolute;inset:0;border-radius:50%;pointer-events:none;opacity:.12;mix-blend-mode:overlay;
+        background-image:repeating-linear-gradient(0deg,#fff 0 1px,#000 1px 3px)}
+  #me{position:absolute;left:50%;width:26px;height:26px;margin:-13px 0 0 -13px;pointer-events:none;
+      filter:drop-shadow(0 0 3px #000)}
+  #compass{position:absolute;inset:-6px;pointer-events:none;transition:transform .3s linear}
+  #compass b{position:absolute;left:50%;top:0;width:28px;height:28px;margin:-6px 0 0 -14px;border-radius:50%;
+      background:#000;border:2px solid #fff;font-size:15px;display:flex;align-items:center;justify-content:center}
+  #bars{width:min(88vw,58vh);margin-top:22px;display:flex;height:10px;gap:0;background:#000;border:2px solid #000}
+  #hp{flex:1;background:#4a9a4f}
+  #ar{flex:1;background:#2c6b8f}
+  #info{margin-top:10px;font-size:13px;opacity:.7;letter-spacing:.5px}
+  #start{position:fixed;inset:0;background:#000d;display:flex;flex-direction:column;align-items:center;
+         justify-content:center;gap:16px;text-align:center;padding:24px;z-index:9}
+  #start button{font-size:18px;padding:14px 32px;border-radius:30px;border:2px solid #fff;background:#000;color:#fff}
+  #start p{max-width:300px;opacity:.75;font-size:14px;margin:0}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="ring"><div id="map"></div><div id="vignette"></div><div id="noise"></div>
+    <svg id="me" viewBox="0 0 26 26"><path d="M13 2 L23 23 L13 18 L3 23 Z" fill="#9fd0ff" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/></svg>
+  </div>
+  <div id="compass"><b>N</b></div>
+</div>
+<div id="bars"><div id="hp"></div><div id="ar"></div></div>
+<div id="info">Warte auf GPS …</div>
+
+<div id="start">
+  <p>Die Karte folgt deinem Standort und dreht sich in deine Blickrichtung. Erlaube Standort (und Kompass) im nächsten Schritt.</p>
+  <button id="go">Start</button>
+</div>
+
+<script>
+const C = {
+  ground:'#1a1c1e', water:'#2f4f6b', park:'#22302a', building:'#2a2d30',
+  minor:'#6f7377', mid:'#9a9ea2', major:'#c9a227', rail:'#3a3d40'
+};
+const style = {
+  version:8,
+  sources:{ omt:{ type:'vector', url:'https://tiles.openfreemap.org/planet' } },
+  layers:[
+    {id:'bg',type:'background',paint:{'background-color':C.ground}},
+    {id:'landcover',type:'fill',source:'omt','source-layer':'landcover',paint:{'fill-color':C.park}},
+    {id:'park',type:'fill',source:'omt','source-layer':'park',paint:{'fill-color':C.park}},
+    {id:'water',type:'fill',source:'omt','source-layer':'water',paint:{'fill-color':C.water}},
+    {id:'building',type:'fill',source:'omt','source-layer':'building',paint:{'fill-color':C.building,'fill-outline-color':'#383b3e'}},
+    {id:'road-minor-case',type:'line',source:'omt','source-layer':'transportation',
+      filter:['in','class','minor','service','track','path'],
+      paint:{'line-color':'#000','line-width':['interpolate',['exponential',1.5],['zoom'],14,1.5,19,10]}},
+    {id:'road-minor',type:'line',source:'omt','source-layer':'transportation',
+      filter:['in','class','minor','service','track','path'],
+      paint:{'line-color':C.minor,'line-width':['interpolate',['exponential',1.5],['zoom'],14,0.8,19,7]}},
+    {id:'road-mid',type:'line',source:'omt','source-layer':'transportation',
+      filter:['in','class','tertiary','secondary'],
+      paint:{'line-color':C.mid,'line-width':['interpolate',['exponential',1.5],['zoom'],12,1,19,13]}},
+    {id:'road-major',type:'line',source:'omt','source-layer':'transportation',
+      filter:['in','class','primary','trunk','motorway'],
+      paint:{'line-color':C.major,'line-width':['interpolate',['exponential',1.5],['zoom'],10,1.5,19,18]}}
+  ]
+};
+
+let map, started=false, bearing=0, zoomNow=17.2, lastPos=null, compassHeading=null, gpsHeading=null;
+const ring = document.getElementById('ring'), me = document.getElementById('me');
+
+function initMap(lng,lat){
+  const size = ring.clientWidth;
+  const padTop = Math.round(size*0.34);
+  me.style.top = (50 + (padTop/2/size)*100) + '%';
+  map = new maplibregl.Map({
+    container:'map', style, center:[lng,lat], zoom:zoomNow, pitch:55, bearing:0,
+    interactive:false, attributionControl:false, fadeDuration:0, maxPitch:60,
+    padding:{top:padTop,bottom:0,left:0,right:0}
+  });
+}
+
+function update(pos){
+  const {latitude:lat, longitude:lng, speed, heading, accuracy} = pos.coords;
+  lastPos = pos;
+  const kmh = speed ? speed*3.6 : 0;
+  if (speed > 1.2 && heading != null && !isNaN(heading)) gpsHeading = heading; else gpsHeading = null;
+  const h = gpsHeading ?? compassHeading;
+  if (h != null){
+    // kürzesten Drehweg wählen
+    let d = ((h - bearing + 540) % 360) - 180;
+    bearing += d * 0.5;
+  }
+  const targetZoom = 17.6 - Math.min(kmh/90,1)*1.6;
+  zoomNow += (targetZoom - zoomNow)*0.4;
+  if (!map) initMap(lng,lat);
+  map.easeTo({center:[lng,lat], bearing, zoom:zoomNow, duration:900, easing:t=>t});
+  document.getElementById('compass').style.transform = `rotate(${-bearing}deg)`;
+  document.getElementById('info').textContent = `${Math.round(kmh)} km/h · ±${Math.round(accuracy)} m`;
+}
+
+function onOrientation(e){
+  let h = null;
+  if (e.webkitCompassHeading != null) h = e.webkitCompassHeading;
+  else if (e.absolute && e.alpha != null) h = 360 - e.alpha;
+  if (h == null) return;
+  compassHeading = h;
+  if (gpsHeading == null && map){
+    let d = ((h - bearing + 540) % 360) - 180;
+    bearing += d * 0.15;
+    map.setBearing(bearing);
+    document.getElementById('compass').style.transform = `rotate(${-bearing}deg)`;
+  }
+}
+
+async function start(){
+  if (started) return; started = true;
+  document.getElementById('start').style.display = 'none';
+  try{
+    if (typeof DeviceOrientationEvent !== 'undefined' && DeviceOrientationEvent.requestPermission){
+      const r = await DeviceOrientationEvent.requestPermission();
+      if (r === 'granted') window.addEventListener('deviceorientation', onOrientation, true);
+    } else {
+      window.addEventListener('deviceorientationabsolute', onOrientation, true);
+      window.addEventListener('deviceorientation', onOrientation, true);
+    }
+  }catch(e){}
+  if (!navigator.geolocation){ document.getElementById('info').textContent='Kein GPS verfügbar'; return; }
+  navigator.geolocation.watchPosition(update, err=>{
+    document.getElementById('info').textContent='GPS-Fehler: '+err.message;
+  },{enableHighAccuracy:true, maximumAge:500, timeout:15000});
+  try{ navigator.wakeLock && navigator.wakeLock.request('screen'); }catch(e){}
+  if (navigator.getBattery){
+    navigator.getBattery().then(b=>{
+      const set=()=>{ const p=Math.max(5,Math.round(b.level*100));
+        document.getElementById('hp').style.flex=p; document.getElementById('ar').style.flex=100-p+1; };
+      set(); b.addEventListener('levelchange',set);
+    });
+  }
+}
+document.getElementById('go').addEventListener('click', start);
+</script>
+</body>
+</html>
