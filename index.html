@@ -238,6 +238,7 @@ function update(pos){
   if(h!=null) turnTo(h,0.5);
   zoomNow += ((17.6-Math.min(kmh/90,1)*1.6)-zoomNow)*0.4;
   infoBase=`${Math.round(kmh)} km/h · ±${Math.round(accuracy)} m`;
+  $('info').textContent=infoBase;
   if(!map){ initMap(lng,lat); marker.setRotation(hd); return; }
   lastLL=[lng,lat]; tween(lastLL); marker.setRotation(hd); follow(900); updateRemaining();
 }
@@ -361,4 +362,4 @@ function clearRoute(){
   if(destMarker){ destMarker.remove(); destMarker=null; }
 }
 $('routebtn').addEventListener('click',()=>$('rpanel').classList.add('open'));
-$('rcancel').addEventListener('click',()=>$('r
+$('rcancel')
