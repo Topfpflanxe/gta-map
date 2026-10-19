@@ -93,22 +93,20 @@
 
 <script>
 const $ = id => document.getElementById(id);
-const C = {ground:'#1a1c1e',water:'#2f4f6b',park:'#22302a',building:'#2a2d30',minor:'#6f7377',mid:'#9a9ea2',major:'#c9a227'};
+const C = {ground:'#212122',water:'#3a4b56',glow:'#c4d6e0',building:'#171718',minor:'#7a7a7c',mid:'#a6a6a8',major:'#cdcdcf'};
 const W = ['interpolate',['exponential',1.5],['zoom']];
 const style = {version:8, sources:{omt:{type:'vector',url:'https://tiles.openfreemap.org/planet'}}, layers:[
   {id:'bg',type:'background',paint:{'background-color':C.ground}},
-  {id:'lc',type:'fill',source:'omt','source-layer':'landcover',paint:{'fill-color':C.park}},
-  {id:'park',type:'fill',source:'omt','source-layer':'park',paint:{'fill-color':C.park}},
+  {id:'bld',type:'fill',source:'omt','source-layer':'building',paint:{'fill-color':C.building}},
   {id:'water',type:'fill',source:'omt','source-layer':'water',paint:{'fill-color':C.water}},
-  {id:'bld',type:'fill',source:'omt','source-layer':'building',paint:{'fill-color':C.building,'fill-outline-color':'#383b3e'}},
-  {id:'rmc',type:'line',source:'omt','source-layer':'transportation',filter:['in','class','minor','service','track','path'],
-    paint:{'line-color':'#000','line-width':[...W,14,1.5,19,10]}},
-  {id:'rm',type:'line',source:'omt','source-layer':'transportation',filter:['in','class','minor','service','track','path'],
-    paint:{'line-color':C.minor,'line-width':[...W,14,0.8,19,7]}},
+  {id:'water-glow',type:'line',source:'omt','source-layer':'water',
+    paint:{'line-color':C.glow,'line-opacity':0.55,'line-blur':6,'line-width':[...W,10,2,19,14]}},
+  {id:'rm',type:'line',source:'omt','source-layer':'transportation',filter:['in','class','minor','service'],
+    paint:{'line-color':C.minor,'line-width':[...W,14,1,19,9]}},
   {id:'rmid',type:'line',source:'omt','source-layer':'transportation',filter:['in','class','tertiary','secondary'],
-    paint:{'line-color':C.mid,'line-width':[...W,12,1,19,13]}},
+    paint:{'line-color':C.mid,'line-width':[...W,12,1.2,19,15]}},
   {id:'rmaj',type:'line',source:'omt','source-layer':'transportation',filter:['in','class','primary','trunk','motorway'],
-    paint:{'line-color':C.major,'line-width':[...W,10,1.5,19,18]}}
+    paint:{'line-color':C.major,'line-width':[...W,10,1.8,19,24]}}
 ]};
 
 /* Einstellungen */
@@ -125,7 +123,7 @@ function initMap(lng,lat){
   map = new maplibregl.Map({container:'map',style,center:lastLL,zoom:zoomNow,pitch:55,bearing:hd,
     attributionControl:false,fadeDuration:0,maxPitch:70});
   const el = document.createElement('div');
-  el.innerHTML='<svg class="arrow" viewBox="0 0 26 26"><path d="M13 2 L23 23 L13 18 L3 23 Z" fill="#9fd0ff" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/></svg>';
+  el.innerHTML='<svg class="arrow" viewBox="0 0 26 26"><path d="M13 2 L23 23 L13 18 L3 23 Z" fill="#ececee" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/></svg>';
   marker = new maplibregl.Marker({element:el,rotationAlignment:'map',pitchAlignment:'viewport'}).setLngLat(lastLL).addTo(map);
   mPos=lastLL;
   map.on('rotate',()=>{ const t=`rotate(${-map.getBearing()}deg)`; $('compass').style.transform=t; $('north').style.transform=t; });
