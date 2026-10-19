@@ -232,16 +232,27 @@ function update(pos){
   const h=gpsHeading ?? compassHeading;
   if(h!=null) turnTo(h,0.5);
   zoomNow += ((17.6-Math.min(kmh/90,1)*1.6)-zoomNow)*0.4;
-  $('info').textContent=`${Math.round(kmh)} km/h · ±${Math.round(accuracy)} m`;
+  infoBase=`${Math.round(kmh)} km/h · ±${Math.round(accuracy)} m`;
   if(!map){ initMap(lng,lat); marker.setRotation(hd); return; }
   lastLL=[lng,lat]; tween(lastLL); marker.setRotation(hd); follow(900); updateRemaining();
 }
 
+let absAt=0, lastOri=0, infoBase='Warte auf GPS …';
+function eulerHeading(alpha,beta,gamma){   // kippkompensiert: Richtung, in die die Rückseite des Handys zeigt
+  const d=Math.PI/180,a=alpha*d,b=beta*d,g=gamma*d;
+  const cA=Math.cos(a),sA=Math.sin(a),cB=Math.cos(b),sB=Math.sin(b),cG=Math.cos(g),sG=Math.sin(g);
+  const rA=-cA*sG-sA*sB*cG, rB=-sA*sG+cA*sB*cG;
+  return ((Math.atan2(rA,rB)/d)+360)%360;
+}
 function onOrientation(e){
   let h=null;
   if(e.webkitCompassHeading!=null) h=e.webkitCompassHeading;
-  else if(e.absolute && e.alpha!=null) h=360-e.alpha;
+  else if(e.alpha!=null && e.beta!=null && e.gamma!=null){
+    if(e.type==='deviceorientationabsolute' || e.absolute){ absAt=Date.now(); h=eulerHeading(e.alpha,e.beta,e.gamma); }
+    else if(Date.now()-absAt>2000) h=eulerHeading(e.alpha,e.beta,e.gamma);
+  }
   if(h==null) return;
+  lastOri=Date.now();
   compassHeading=h;
   if(gpsHeading==null && map){
     turnTo(h,0.15); marker.setRotation(hd);
@@ -348,16 +359,4 @@ async function start(){
       window.addEventListener('deviceorientation',onOrientation,true);
     }
   }catch(e){}
-  if(!navigator.geolocation){ $('info').textContent='Kein GPS verfügbar'; return; }
-  navigator.geolocation.watchPosition(update,err=>{ $('info').textContent='GPS-Fehler: '+err.message; },
-    {enableHighAccuracy:true,maximumAge:500,timeout:15000});
-  try{ navigator.wakeLock&&navigator.wakeLock.request('screen'); }catch(e){}
-  if(navigator.getBattery) navigator.getBattery().then(b=>{
-    const set=()=>{ const p=Math.max(5,Math.round(b.level*100)); $('hp').style.flex=p; $('ar').style.flex=101-p; };
-    set(); b.addEventListener('levelchange',set);
-  });
-}
-$('go').addEventListener('click',start);
-</script>
-</body>
-</html>
+  if(!navigator.geolocation){ infoBase='Kein GPS v
