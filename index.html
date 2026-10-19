@@ -93,11 +93,10 @@
 
 <script>
 const $ = id => document.getElementById(id);
-const C = {ground:'#1b1b1c',water:'#3a4b56',glow:'#c4d6e0',building:'#3e3e40',minor:'#7a7a7c',mid:'#a6a6a8',major:'#cdcdcf'};
+const C = {ground:'#1b1b1c',water:'#3a4b56',glow:'#c4d6e0',building:'#4a4a4c',minor:'#7a7a7c',mid:'#a6a6a8',major:'#cdcdcf'};
 const W = ['interpolate',['exponential',1.5],['zoom']];
-const style = {version:8, sources:{omt:{type:'vector',url:'https://tiles.openfreemap.org/planet'}}, layers:[
+const style = {version:8, light:{anchor:'viewport',color:'#ffffff',intensity:0.4,position:[1.15,210,35]}, sources:{omt:{type:'vector',url:'https://tiles.openfreemap.org/planet'}}, layers:[
   {id:'bg',type:'background',paint:{'background-color':C.ground}},
-  {id:'bld',type:'fill',source:'omt','source-layer':'building',paint:{'fill-color':C.building,'fill-outline-color':'#2c2c2e'}},
   {id:'water',type:'fill',source:'omt','source-layer':'water',paint:{'fill-color':C.water}},
   {id:'water-glow',type:'line',source:'omt','source-layer':'water',
     paint:{'line-color':C.glow,'line-opacity':0.55,'line-blur':6,'line-width':[...W,10,2,19,14]}},
@@ -106,7 +105,15 @@ const style = {version:8, sources:{omt:{type:'vector',url:'https://tiles.openfre
   {id:'rmid',type:'line',source:'omt','source-layer':'transportation',filter:['in','class','tertiary','secondary'],
     paint:{'line-color':C.mid,'line-width':[...W,12,1.2,19,15]}},
   {id:'rmaj',type:'line',source:'omt','source-layer':'transportation',filter:['in','class','primary','trunk','motorway'],
-    paint:{'line-color':C.major,'line-width':[...W,10,1.8,19,24]}}
+    paint:{'line-color':C.major,'line-width':[...W,10,1.8,19,24]}},
+  {id:'bld3d',type:'fill-extrusion',source:'omt','source-layer':'building',minzoom:13,
+    paint:{'fill-extrusion-color':C.building,'fill-extrusion-opacity':1,
+      'fill-extrusion-height':['max',['to-number',['get','render_height'],6],5],
+      'fill-extrusion-base':['to-number',['get','render_min_height'],0]}},
+  {id:'poi-fuel',type:'symbol',source:'omt','source-layer':'poi',minzoom:13,
+    filter:['==',['get','class'],'fuel'],
+    layout:{'icon-image':'fuel','icon-allow-overlap':true,'icon-pitch-alignment':'viewport',
+      'icon-size':['interpolate',['linear'],['zoom'],13,0.4,18,0.85]}}
 ]};
 
 /* Einstellungen */
@@ -118,10 +125,26 @@ let map, marker, started=false, expanded=false, following=true;
 let hd=0, zoomNow=17.2, lastLL=null, mPos=null, anim=null, gpsHeading=null, compassHeading=null;
 const isBig = () => S.layout==='full' || expanded;
 
+
+function fuelIcon(){
+  const c=document.createElement('canvas'); c.width=c.height=64; const x=c.getContext('2d');
+  x.fillStyle='#c4c4c6'; x.beginPath(); x.arc(32,32,29,0,7); x.fill();
+  x.lineWidth=3; x.strokeStyle='#000'; x.stroke();
+  x.fillStyle='#000';
+  x.fillRect(19,15,18,32);          // Säule
+  x.fillRect(16,46,24,5);           // Fuß
+  x.fillStyle='#c4c4c6'; x.fillRect(23,19,10,9);  // Display
+  x.fillStyle='#000';
+  x.fillRect(37,24,6,3); x.fillRect(41,24,3,16);  // Schlauch
+  x.beginPath(); x.moveTo(44,40); x.lineTo(49,40); x.lineTo(46.5,45); x.fill(); // Zapfhahn
+  return x.getImageData(0,0,64,64);
+}
+
 function initMap(lng,lat){
   lastLL=[lng,lat];
   map = new maplibregl.Map({container:'map',style,center:lastLL,zoom:zoomNow,pitch:55,bearing:hd,
     attributionControl:false,fadeDuration:0,maxPitch:70});
+  map.on('styleimagemissing',e=>{ if(e.id==='fuel' && !map.hasImage('fuel')) map.addImage('fuel',fuelIcon(),{pixelRatio:2}); });
   const el = document.createElement('div');
   el.innerHTML='<svg class="arrow" viewBox="0 0 26 26"><path d="M13 2 L23 23 L13 18 L3 23 Z" fill="#ececee" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/></svg>';
   marker = new maplibregl.Marker({element:el,rotationAlignment:'map',pitchAlignment:'viewport'}).setLngLat(lastLL).addTo(map);
