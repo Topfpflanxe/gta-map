@@ -350,13 +350,11 @@ document.querySelectorAll('.seg button').forEach(b=>b.addEventListener('click',(
 apply(true);
 
 async function start(){
-  if(started) return; started=true; $('start').style.display='none';
+  if(started) return;
+  if(typeof maplibregl==='undefined'){ $('start').querySelector('p').textContent='Kartenbibliothek nicht geladen – Seite neu laden.'; return; }
+  started=true; $('start').style.display='none';
   try{
     if(typeof DeviceOrientationEvent!=='undefined' && DeviceOrientationEvent.requestPermission){
       if(await DeviceOrientationEvent.requestPermission()==='granted') window.addEventListener('deviceorientation',onOrientation,true);
     }else{
-      window.addEventListener('deviceorientationabsolute',onOrientation,true);
-      window.addEventListener('deviceorientation',onOrientation,true);
-    }
-  }catch(e){}
-  if(!navigator.geolocation){ infoBase='Kein GPS v
+      window.addEventListener('deviceorientationabsolute',onOrientation,tr
