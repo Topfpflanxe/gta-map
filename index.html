@@ -46,15 +46,24 @@
   #close{position:fixed;top:calc(env(safe-area-inset-top) + 12px);left:12px;z-index:8;display:none}
   body.big.canclose #close{display:flex}
 
-  #panel{position:fixed;inset:0;z-index:20;background:#000c;display:none;align-items:center;justify-content:center}
-  #panel.open{display:flex}
-  #card{background:#17191b;border:2px solid #3a3d40;border-radius:18px;padding:20px;width:min(86vw,340px)}
-  #card h3{margin:0 0 14px;font-size:17px}
+  #panel,#rpanel{position:fixed;inset:0;z-index:20;background:#000c;display:none;align-items:center;justify-content:center}
+  #panel.open,#rpanel.open{display:flex}
+  #card,#rcard{background:#17191b;border:2px solid #3a3d40;border-radius:18px;padding:20px;width:min(86vw,340px)}
+  #card h3,#rcard h3{margin:0 0 14px;font-size:17px}
   .row{margin-bottom:14px}.row label{display:block;font-size:13px;opacity:.7;margin-bottom:6px}
   .seg{display:flex;border:2px solid #3a3d40;border-radius:12px;overflow:hidden}
   .seg button{flex:1;padding:10px 0;background:none;border:none;color:#fff;font-size:15px}
   .seg button.on{background:#c9a227;color:#000;font-weight:600}
   #done{width:100%;padding:12px;border-radius:12px;border:none;background:#fff;color:#000;font-size:16px;margin-top:4px}
+  #rcard input{width:100%;box-sizing:border-box;padding:12px;border-radius:12px;border:2px solid #3a3d40;background:#0e0f10;color:#fff;font-size:16px;margin-bottom:10px}
+  #rcard button{width:100%;padding:12px;border-radius:12px;border:none;font-size:16px;margin-top:6px}
+  #rgo{background:#9d5cf2;color:#fff;font-weight:600}
+  #rclear{background:#2a2d30;color:#fff}#rcancel{background:none;color:#aaa}
+  #rmsg{font-size:13px;min-height:18px;opacity:.85;margin:2px 0 4px}
+  #dist{position:absolute;left:24%;bottom:15%;display:none;pointer-events:none;text-shadow:0 0 4px #000,0 0 2px #000;line-height:1}
+  #dist b{font-size:20px;font-weight:700;letter-spacing:-.5px}#dist small{display:block;font-size:12px;opacity:.85;margin-top:3px}
+  body.big #dist{left:16px;bottom:calc(env(safe-area-inset-bottom) + 70px)}
+  body.big #dist b{font-size:26px}
   #start{position:fixed;inset:0;background:#000d;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;text-align:center;padding:24px;z-index:30}
   #start button{font-size:18px;padding:14px 32px;border-radius:30px;border:2px solid #fff;background:#000;color:#fff}
   #start p{max-width:300px;opacity:.75;font-size:14px;margin:0}
@@ -62,7 +71,7 @@
 </head>
 <body>
 <div id="wrap">
-  <div id="ring"><div id="map"></div><div id="vignette"></div><div id="noise"></div></div>
+  <div id="ring"><div id="map"></div><div id="vignette"></div><div id="noise"></div><div id="dist"><b id="dv"></b><small id="dt"></small></div></div>
   <div id="compass"><div class="badge">N</div></div>
 </div>
 <div id="bars"><div id="hp"></div><div id="ar"></div></div>
@@ -70,6 +79,7 @@
 
 <button class="btn" id="close" aria-label="Schließen">✕</button>
 <div id="tools">
+  <button class="btn" id="routebtn" aria-label="Route">➤</button>
   <button class="btn" id="gear" aria-label="Einstellungen">⚙</button>
   <button class="btn" id="north" aria-label="Norden"><span class="badge" style="border:none;background:none">N</span></button>
   <button class="btn" id="recenter" aria-label="Zentrieren">◎</button>
@@ -84,6 +94,16 @@
   <div class="row"><label>3D-Neigung (Großansicht)</label><div class="seg" data-k="tilt">
     <button data-v="1">An</button><button data-v="0">Aus</button></div></div>
   <button id="done">Fertig</button>
+</div></div>
+
+<div id="rpanel"><div id="rcard">
+  <h3>Route</h3>
+  <input id="rfrom" placeholder="Von (leer = Mein Standort)" autocomplete="off">
+  <input id="rto" placeholder="Nach (Adresse oder Ort)" autocomplete="off">
+  <div id="rmsg"></div>
+  <button id="rgo">Schnellste Route</button>
+  <button id="rclear">Route löschen</button>
+  <button id="rcancel">Schließen</button>
 </div></div>
 
 <div id="start">
@@ -211,7 +231,7 @@ function update(pos){
   zoomNow += ((17.6-Math.min(kmh/90,1)*1.6)-zoomNow)*0.4;
   $('info').textContent=`${Math.round(kmh)} km/h · ±${Math.round(accuracy)} m`;
   if(!map){ initMap(lng,lat); marker.setRotation(hd); return; }
-  lastLL=[lng,lat]; tween(lastLL); marker.setRotation(hd); follow(900);
+  lastLL=[lng,lat]; tween(lastLL); marker.setRotation(hd); follow(900); updateRemaining();
 }
 
 function onOrientation(e){
@@ -225,6 +245,81 @@ function onOrientation(e){
     if(following && (!isBig() || S.rotate==='1')) map.setBearing(hd);
   }
 }
+
+/* Route */
+const PURPLE='#9d5cf2';
+let route=null, destMarker=null;
+const $m=t=>{ $('rmsg').textContent=t; };
+const meters=(a,b)=>{ const k=Math.cos(a[1]*Math.PI/180); return Math.hypot((b[0]-a[0])*k*111320,(b[1]-a[1])*110540); };
+const fmt=m=>m>=1000?(m/1000).toFixed(2)+'km':Math.round(m/10)*10+'m';
+async function geocode(q){
+  let u='https://nominatim.openstreetmap.org/search?format=json&limit=1&accept-language=de&q='+encodeURIComponent(q);
+  if(lastLL){ const [x,y]=lastLL; u+=`&viewbox=${x-1},${y+1},${x+1},${y-1}`; }
+  const j=await (await fetch(u)).json();
+  if(!j.length) throw new Error('Nicht gefunden: '+q);
+  return [+j[0].lon,+j[0].lat];
+}
+function drawRoute(data){
+  const go=()=>{
+    if(map.getSource('route')){ map.getSource('route').setData(data); return; }
+    map.addSource('route',{type:'geojson',data});
+    const lay={'line-cap':'round','line-join':'round'};
+    map.addLayer({id:'route-glow',type:'line',source:'route',layout:lay,
+      paint:{'line-color':PURPLE,'line-opacity':0.35,'line-blur':4,'line-width':[...W,12,6,19,28]}},'bld3d');
+    map.addLayer({id:'route-line',type:'line',source:'route',layout:lay,
+      paint:{'line-color':PURPLE,'line-width':[...W,12,3,19,15]}},'bld3d');
+  };
+  if(map.isStyleLoaded()) go(); else map.once('load',go);
+}
+function updateRemaining(){
+  if(!route||!lastLL) return;
+  let bi=0,bd=1e18; const k=Math.cos(lastLL[1]*Math.PI/180);
+  route.coords.forEach((c,i)=>{ const d=((c[0]-lastLL[0])*k)**2+(c[1]-lastLL[1])**2; if(d<bd){bd=d;bi=i;} });
+  const rem=Math.max(0,route.total-route.cum[bi]);
+  $('dv').textContent='↑ '+fmt(rem);
+  $('dt').textContent=Math.max(1,Math.round(route.dur*rem/route.total/60))+' min';
+}
+async function calcRoute(){
+  const from=$('rfrom').value.trim(), to=$('rto').value.trim();
+  if(!to){ $m('Bitte ein Ziel eingeben.'); return; }
+  $('rgo').disabled=true; $m('Suche …');
+  try{
+    const b=from?await geocode(from):lastLL;
+    if(!b) throw new Error('Noch kein GPS – gib einen Startpunkt ein.');
+    const e=await geocode(to);
+    const r=await fetch(`https://router.project-osrm.org/route/v1/driving/${b[0]},${b[1]};${e[0]},${e[1]}?overview=full&geometries=geojson`);
+    const j=await r.json();
+    if(j.code!=='Ok') throw new Error('Keine Route gefunden.');
+    const rt=j.routes[0], coords=rt.geometry.coordinates, cum=[0];
+    for(let i=1;i<coords.length;i++) cum.push(cum[i-1]+meters(coords[i-1],coords[i]));
+    route={coords,cum,total:Math.max(cum[cum.length-1],1),dur:rt.duration,km:rt.distance};
+    if(!map){ initMap(b[0],b[1]); marker.setRotation(hd); }
+    drawRoute({type:'Feature',geometry:rt.geometry});
+    if(destMarker) destMarker.remove();
+    const d=document.createElement('div');
+    d.style.cssText='width:16px;height:16px;border-radius:50%;background:'+PURPLE+';border:3px solid #fff;box-shadow:0 0 6px #000';
+    destMarker=new maplibregl.Marker({element:d}).setLngLat(e).addTo(map);
+    $('dist').style.display='block'; updateRemaining();
+    $m(`${(rt.distance/1000).toFixed(1)} km · ${Math.round(rt.duration/60)} min`);
+    $('rpanel').classList.remove('open');
+    if(S.layout==='circle') expanded=true;
+    apply(true);
+    const bb=new maplibregl.LngLatBounds(); coords.forEach(c=>bb.extend(c));
+    map.setPadding({top:0,bottom:0,left:0,right:0});
+    following=false; refresh();
+    map.fitBounds(bb,{padding:{top:90,bottom:110,left:50,right:50},pitch:0,bearing:0,duration:800});
+  }catch(err){ $m(err.message||'Fehler bei der Routenberechnung.'); }
+  $('rgo').disabled=false;
+}
+function clearRoute(){
+  route=null; $('dist').style.display='none'; $m('');
+  if(map&&map.getSource('route')) map.getSource('route').setData({type:'FeatureCollection',features:[]});
+  if(destMarker){ destMarker.remove(); destMarker=null; }
+}
+$('routebtn').addEventListener('click',()=>$('rpanel').classList.add('open'));
+$('rcancel').addEventListener('click',()=>$('rpanel').classList.remove('open'));
+$('rgo').addEventListener('click',calcRoute);
+$('rclear').addEventListener('click',clearRoute);
 
 /* Bedienung */
 $('ring').addEventListener('click',()=>{ if(!isBig() && map){ expanded=true; apply(true); } });
