@@ -89,6 +89,8 @@
   <h3>Einstellungen</h3>
   <div class="row"><label>Anzeige</label><div class="seg" data-k="layout">
     <button data-v="circle">Kreis</button><button data-v="full">Vollbild</button></div></div>
+  <div class="row"><label>Kreisansicht: Was dreht sich?</label><div class="seg" data-k="crot">
+    <button data-v="0">Pfeil</button><button data-v="1">Karte</button></div></div>
   <div class="row"><label>Karte dreht sich mit (Großansicht)</label><div class="seg" data-k="rotate">
     <button data-v="1">An</button><button data-v="0">Nordoben</button></div></div>
   <div class="row"><label>3D-Neigung (Großansicht)</label><div class="seg" data-k="tilt">
@@ -137,13 +139,14 @@ const style = {version:8, light:{anchor:'viewport',color:'#ffffff',intensity:0.4
 ]};
 
 /* Einstellungen */
-let S = {layout:'circle', rotate:'1', tilt:'1'};
+let S = {layout:'circle', rotate:'1', tilt:'1', crot:'0'};
 try{ Object.assign(S, JSON.parse(localStorage.getItem('gtamini')||'{}')); }catch(e){}
 const save = () => { try{ localStorage.setItem('gtamini', JSON.stringify(S)); }catch(e){} };
 
 let map, marker, started=false, expanded=false, following=true;
 let hd=0, zoomNow=17.2, lastLL=null, mPos=null, anim=null, gpsHeading=null, compassHeading=null;
 const isBig = () => S.layout==='full' || expanded;
+const rotMap = () => isBig() ? S.rotate==='1' : S.crot==='1';
 
 
 function fuelIcon(){
@@ -200,14 +203,14 @@ function apply(reset){
   const o={center:lastLL,duration:500,
     pitch:(!big||S.tilt==='1')?55:0,
     zoom:big?Math.min(zoomNow,16.6):zoomNow,
-    bearing:(!big||S.rotate==='1')?hd:0};
+    bearing:rotMap()?hd:0};
   map.easeTo(o);
 }
 
 function follow(dur){
   if(!map||!following) return;
   const big=isBig(), o={center:lastLL,duration:dur,easing:t=>t};
-  if(!big){ o.bearing=hd; o.zoom=zoomNow; o.pitch=55; }
+  if(!big){ o.bearing=S.crot==='1'?hd:0; o.zoom=zoomNow; o.pitch=55; }
   else if(S.rotate==='1') o.bearing=hd;
   map.easeTo(o);
 }
@@ -242,7 +245,7 @@ function onOrientation(e){
   compassHeading=h;
   if(gpsHeading==null && map){
     turnTo(h,0.15); marker.setRotation(hd);
-    if(following && (!isBig() || S.rotate==='1')) map.setBearing(hd);
+    if(following && rotMap()) map.setBearing(hd);
   }
 }
 
